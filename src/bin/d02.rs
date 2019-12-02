@@ -36,7 +36,7 @@ impl VM {
         VM { bytecode, pc: 0 }
     }
 
-    // Executes the VM and returns what's left at position 0.
+    // Executes the VM.
     fn run(&mut self) {
         loop {
             let inst = self.get_next_instruction();
@@ -126,8 +126,6 @@ mod tests {
 
 fn main() {
     let mut program = read_csv_ints("assets/day2_input");
-    // These are special instructions to restore the crashed state.
-    //
     let desired_result = 19690720;
 
     for noun in 0..100 {
