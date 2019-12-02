@@ -1,3 +1,3 @@
-# Advent Of Code
+# Advent Of Code 2019
 
-https://adventofcode.com/
+Trying out rust for https://adventofcode.com/
