@@ -95,31 +95,6 @@ impl Line {
     }
 }
 
-// Our priority queue depends on ordering. This trait implementation
-// ensures that it behaves likes a min-heap for our line segments.
-impl Ord for Line {
-    fn cmp(&self, o: &Line) -> Ordering {
-        // We compare only on y coordinates and break any ties
-        // with other coordinates.
-        match self.y1.cmp(&o.y1) {
-            Ordering::Equal => match self.y2.cmp(&o.y2) {
-                Ordering::Equal => match self.x1.cmp(&o.x1) {
-                    Ordering::Equal => return self.x2.cmp(&o.x2),
-                    ordering => return ordering,
-                },
-                ordering => return ordering,
-            },
-            ordering => return ordering,
-        }
-    }
-}
-
-impl PartialOrd for Line {
-    fn partial_cmp(&self, o: &Line) -> Option<Ordering> {
-        Some(self.cmp(o))
-    }
-}
-
 #[derive(Debug)]
 struct Panel {
     lines: Vec<Line>,
@@ -198,35 +173,6 @@ mod tests {
         let l2 = Line::new(0, 0, 75, 0);
         assert_eq!(l1.intersects(&l2), None);
         assert_eq!(l2.intersects(&l1), None);
-    }
-
-    #[test]
-    fn test_line_ordering() {
-        // l1 is smaller
-        let l1 = Line::new(0, 0, 10, 0);
-        let l2 = Line::new(1, 10, 11, 10);
-        assert_eq!(l1 < l2, true);
-
-        // identical
-        let l1 = Line::new(0, 0, 10, 0);
-        let l2 = Line::new(0, 0, 10, 0);
-        assert_eq!(l1 < l2, false);
-        assert_eq!(l1 == l2, true);
-
-        // y1 is same. y2 should break the tie
-        let l1 = Line::new(10, 10, 20, 10);
-        let l2 = Line::new(20, 10, 20, 11);
-        assert_eq!(l1 < l2, true);
-
-        // y1, y2 are identical. x1 should break the tie
-        let l1 = Line::new(10, 10, 20, 10);
-        let l2 = Line::new(11, 10, 20, 10);
-        assert_eq!(l1 < l2, true);
-
-        // x1, y1, y2 are identical. x2 should break the tie
-        let l1 = Line::new(10, 10, 20, 10);
-        let l2 = Line::new(10, 10, 21, 10);
-        assert_eq!(l1 < l2, true);
     }
 
     #[test]
