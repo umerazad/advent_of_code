@@ -1,4 +1,4 @@
-use std::cmp::Ordering;
+
 use std::fs;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -52,6 +52,10 @@ impl Line {
         } else {
             true
         }
+    }
+
+    fn length(&self) -> i64 {
+        self.p1.distance(&self.p2)
     }
 
     fn intersects(&self, other: &Line) -> Option<Point> {
@@ -147,6 +151,29 @@ impl Panel {
         }
         None
     }
+
+    // Returns the cost of intersection in terms of panel's wiring.
+    fn find_intersection_cost(&self, input: &Line) -> Option<Vec<(Point, i64)>> {
+        let mut result = vec![];
+        let mut distance = 0;
+        for l in self.lines.iter() {
+            match l.intersects(input) {
+                Some(p) => {
+                    distance += l.p1.distance(&p);
+                    result.push((p, distance));
+                }
+                None => {
+                    distance += l.length();
+                }
+            }
+        }
+
+        if result.is_empty() {
+            return None;
+        }
+
+        Some(result)
+    }
 }
 
 #[cfg(test)]
@@ -187,6 +214,25 @@ mod tests {
         ];
         assert_eq!(find_closest_intersection(wire1, wire2), Some(135));
     }
+
+    #[test]
+    fn test_find_cheapest_intersection() {
+        let wire1 = vec!["R8", "U5", "L5", "D3"];
+        let wire2 = vec!["U7", "R6", "D4", "L4"];
+        assert_eq!(find_cheapest_intersection(wire1, wire2), Some(30));
+
+        let wire1 = vec![
+            "R98", "U47", "R26", "D63", "R33", "U87", "L62", "D20", "R33", "U53", "R51",
+        ];
+        let wire2 = vec![
+            "U98", "R91", "D20", "R16", "D67", "R40", "U7", "R15", "U6", "R7",
+        ];
+        assert_eq!(find_cheapest_intersection(wire1, wire2), Some(410));
+
+        let wire1 = vec!["R75", "D30", "R83", "U83", "L12", "D49", "R71", "U7", "L72"];
+        let wire2 = vec!["U62", "R66", "U55", "R34", "D71", "R55", "D58", "R83"];
+        assert_eq!(find_cheapest_intersection(wire1, wire2), Some(610));
+    }
 }
 
 fn find_closest_intersection(wire1: Vec<&str>, wire2: Vec<&str>) -> Option<i64> {
@@ -219,6 +265,41 @@ fn find_closest_intersection(wire1: Vec<&str>, wire2: Vec<&str>) -> Option<i64> 
     }
 }
 
+fn find_cheapest_intersection(wire1: Vec<&str>, wire2: Vec<&str>) -> Option<i64> {
+    let mut panel = Panel::new();
+    // Layout wires of first panel.
+    for x in wire1.iter() {
+        panel.insert(x);
+    }
+
+    let mut cost = 0;
+    let mut other = Panel::new();
+    let mut absolute_min = i64::max_value();
+    for w in wire2.iter() {
+        let l = other.get_next_line(w);
+        other.insert(w);
+        if let Some(v) = panel.find_intersection_cost(&l) {
+            let mut min = i64::max_value();
+            for (p, wire1_cost) in v.iter() {
+                let tmp = cost + wire1_cost + l.p1.distance(&p);
+                if tmp < min {
+                    min = tmp;
+                }
+            }
+
+            if min < absolute_min {
+                absolute_min = min;
+            }
+        }
+        cost += l.length();
+    }
+
+    if absolute_min < i64::max_value() {
+        return Some(absolute_min);
+    }
+    None
+}
+
 fn main() {
     let contents = fs::read_to_string("assets/day3_input").unwrap();
     let lines: Vec<&str> = contents.lines().filter(|l| l.len() > 1).collect();
@@ -228,7 +309,15 @@ fn main() {
     let wire2: Vec<&str> = lines[1].split(",").collect();
 
     println!(
-        "Distance : {}",
+        "Closest Distance : {}",
         find_closest_intersection(wire1, wire2).unwrap()
+    );
+
+    let wire1: Vec<&str> = lines[0].split(",").collect();
+    let wire2: Vec<&str> = lines[1].split(",").collect();
+
+    println!(
+        "Closest Cost: {}",
+        find_cheapest_intersection(wire1, wire2).unwrap()
     );
 }
