@@ -19,37 +19,31 @@ impl Point {
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 struct Line {
-    pub x1: i64,
-    pub y1: i64,
-    pub x2: i64,
-    pub y2: i64,
+    p1: Point,
+    p2: Point,
 }
 
 impl Line {
-    fn new(x1: i64, y1: i64, x2: i64, y2: i64) -> Line {
+    fn new(p1: Point, p2: Point) -> Line {
         // Lines are axis-aligned so just making sure that
         // all inputs are either horizontal or vertical.
-        if x1 != x2 && y1 != y2 {
+        if p1.x != p2.x && p1.y != p2.y {
             panic!(
-                "Only horizontal or vertical lines are allowed. ({},{}),({},{})",
-                x1, y1, x2, y2
+                "Only horizontal or vertical lines are allowed. ({:?},{:?})",
+                p1, p2
             );
         }
 
-        if x1 <= x2 {
-            Line { x1, y1, x2, y2 }
-        } else {
-            Line { x2, y2, x1, y1 }
-        }
+        Line { p1, p2 }
     }
 
     // Checks whether the line segment contains
     // the point.
     fn contains(&self, p: &Point) -> bool {
-        let x1 = self.x1.min(self.x2);
-        let x2 = self.x1.max(self.x2);
-        let y1 = self.y1.min(self.y2);
-        let y2 = self.y1.max(self.y2);
+        let x1 = self.p1.x.min(self.p2.x);
+        let x2 = self.p1.x.max(self.p2.x);
+        let y1 = self.p1.y.min(self.p2.y);
+        let y2 = self.p1.y.max(self.p2.y);
 
         // Since all lines are either horizontal or vertical
         // we we'll just use this simple heuristic.
@@ -61,13 +55,13 @@ impl Line {
     }
 
     fn intersects(&self, other: &Line) -> Option<Point> {
-        let a1 = self.y2 - self.y1;
-        let b1 = self.x1 - self.x2;
-        let c1 = a1 * self.x1 + b1 * self.y1;
+        let a1 = self.p2.y - self.p1.y;
+        let b1 = self.p1.x - self.p2.x;
+        let c1 = a1 * self.p1.x + b1 * self.p1.y;
 
-        let a2 = other.y2 - other.y1;
-        let b2 = other.x1 - other.x2;
-        let c2 = a2 * other.x1 + b2 * other.y1;
+        let a2 = other.p2.y - other.p1.y;
+        let b2 = other.p1.x - other.p2.x;
+        let c2 = a2 * other.p1.x + b2 * other.p1.y;
 
         let determinant = a1 * b2 - a2 * b1;
 
@@ -121,7 +115,7 @@ impl Panel {
             x => panic!("Unexpected direction: {}", x),
         }
 
-        Line::new(self.cursor.x, self.cursor.y, to.x, to.y)
+        Line::new(self.cursor, to)
     }
 
     fn insert(&mut self, path: &str) {
@@ -129,7 +123,7 @@ impl Panel {
         self.lines.push(line);
 
         // Update cursor location.
-        self.cursor = Point::new(line.x2, line.y2);
+        self.cursor = Point::new(line.p2.x, line.p2.y);
     }
 
     fn find_intersection(&self, input: &Line) -> Option<i64> {
@@ -161,16 +155,16 @@ mod tests {
 
     #[test]
     fn test_intersection() {
-        let l1 = Line::new(6, 3, 6, 7);
-        let l2 = Line::new(3, 5, 8, 5);
+        let l1 = Line::new(Point::new(6, 3), Point::new(6, 7));
+        let l2 = Line::new(Point::new(3, 5), Point::new(8, 5));
         assert_eq!(l1.intersects(&l2), Some(Point::new(6, 5)));
 
-        let l1 = Line::new(0, 0, 8, 0);
-        let l2 = Line::new(0, 1, 0, 7);
+        let l1 = Line::new(Point::new(0, 0), Point::new(8, 0));
+        let l2 = Line::new(Point::new(0, 1), Point::new(0, 7));
         assert_eq!(l1.intersects(&l2), None);
 
-        let l1 = Line::new(66, 62, 66, 117);
-        let l2 = Line::new(0, 0, 75, 0);
+        let l1 = Line::new(Point::new(66, 62), Point::new(66, 117));
+        let l2 = Line::new(Point::new(0, 0), Point::new(75, 0));
         assert_eq!(l1.intersects(&l2), None);
         assert_eq!(l2.intersects(&l1), None);
     }

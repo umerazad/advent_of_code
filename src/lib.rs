@@ -15,12 +15,3 @@ pub fn read_csv_ints(path: &str) -> Vec<usize> {
         .filter_map(|v| v.parse::<usize>().ok())
         .collect()
 }
-
-pub fn read_csv_strings(path: &str) -> Vec<String> {
-    let contents = fs::read_to_string(path).unwrap();
-    contents
-        .split(",")
-        .map(|l| l.trim().to_owned())
-        .filter(|l| l.len() > 1)
-        .collect()
-}
