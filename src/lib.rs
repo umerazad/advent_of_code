@@ -8,10 +8,10 @@ pub fn read_input(path: &str) -> Vec<i64> {
         .collect()
 }
 
-pub fn read_csv_ints(path: &str) -> Vec<usize> {
+pub fn read_csv_ints(path: &str) -> Vec<i64> {
     let contents = fs::read_to_string(path).unwrap();
     contents
         .split(",")
-        .filter_map(|v| v.parse::<usize>().ok())
+        .filter_map(|v| v.parse::<i64>().ok())
         .collect()
 }

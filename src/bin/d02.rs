@@ -6,8 +6,8 @@ enum Opcode {
     Halt,
 }
 
-impl From<usize> for Opcode {
-    fn from(v: usize) -> Self {
+impl From<i64> for Opcode {
+    fn from(v: i64) -> Self {
         match v {
             1 => Opcode::Add,
             2 => Opcode::Multiply,
@@ -19,20 +19,20 @@ impl From<usize> for Opcode {
 
 #[derive(Debug)]
 pub struct Instruction {
-    pub opcode: usize,
-    pub op1: usize,
-    pub op2: usize,
-    pub op3: usize,
+    pub opcode: i64,
+    pub op1: i64,
+    pub op2: i64,
+    pub op3: i64,
 }
 
 #[derive(Debug)]
 struct VM {
-    pub bytecode: Vec<usize>,
+    pub bytecode: Vec<i64>,
     pub pc: usize,
 }
 
 impl VM {
-    fn new(bytecode: Vec<usize>) -> VM {
+    fn new(bytecode: Vec<i64>) -> VM {
         VM { bytecode, pc: 0 }
     }
 
@@ -43,14 +43,14 @@ impl VM {
             match Opcode::from(inst.opcode) {
                 Opcode::Halt => break,
                 Opcode::Add => {
-                    let v1 = self.bytecode[inst.op1];
-                    let v2 = self.bytecode[inst.op2];
-                    self.bytecode[inst.op3] = v1 + v2;
+                    let v1 = self.bytecode[inst.op1 as usize];
+                    let v2 = self.bytecode[inst.op2 as usize];
+                    self.bytecode[inst.op3 as usize] = v1 + v2;
                 }
                 Opcode::Multiply => {
-                    let v1 = self.bytecode[inst.op1];
-                    let v2 = self.bytecode[inst.op2];
-                    self.bytecode[inst.op3] = v1 * v2;
+                    let v1 = self.bytecode[inst.op1 as usize];
+                    let v2 = self.bytecode[inst.op2 as usize];
+                    self.bytecode[inst.op3 as usize] = v1 * v2;
                 }
             }
         }
