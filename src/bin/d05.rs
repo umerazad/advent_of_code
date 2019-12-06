@@ -6,6 +6,10 @@ enum Opcode {
     Multiply,
     Input,
     Output,
+    JumpIfTrue,
+    JumpIfFalse,
+    LessThan,
+    Equals,
     Halt,
 }
 
@@ -55,6 +59,10 @@ impl From<i64> for Opcode {
             2 => Opcode::Multiply,
             3 => Opcode::Input,
             4 => Opcode::Output,
+            5 => Opcode::JumpIfTrue,
+            6 => Opcode::JumpIfFalse,
+            7 => Opcode::LessThan,
+            8 => Opcode::Equals,
             99 => Opcode::Halt,
             x => panic!("Unexpected opcode: {}", x),
         }
@@ -68,6 +76,10 @@ impl From<Opcode> for i64 {
             Opcode::Multiply => 2,
             Opcode::Input => 3,
             Opcode::Output => 4,
+            Opcode::JumpIfTrue => 5,
+            Opcode::JumpIfFalse => 6,
+            Opcode::LessThan => 7,
+            Opcode::Equals => 8,
             Opcode::Halt => 99,
         }
     }
@@ -117,7 +129,12 @@ impl VM {
             let inst = self.get_next_instruction();
             println!("Executing: {:?}", inst);
             match Opcode::from(inst.opcode) {
-                Opcode::Halt => break,
+                Opcode::Halt => {
+                    // Not technically needed. Just leaving it here to let old
+                    // tests pass.
+                    self.pc += 1;
+                    break;
+                }
                 Opcode::Add => {
                     let v1 = self.get_value(&inst.operands[0]);
                     let v2 = self.get_value(&inst.operands[1]);
@@ -125,6 +142,7 @@ impl VM {
                     // Parameters that an instruction writes to
                     // are always positional.
                     self.bytecode[inst.operands[2].value as usize] = v1 + v2;
+                    self.pc += 4;
                 }
                 Opcode::Multiply => {
                     let v1 = self.get_value(&inst.operands[0]);
@@ -133,12 +151,55 @@ impl VM {
                     // Parameters that an instruction writes to
                     // are always positional.
                     self.bytecode[inst.operands[2].value as usize] = v1 * v2;
+                    self.pc += 4;
                 }
                 Opcode::Input => {
                     self.bytecode[inst.operands[0].value as usize] = self.input;
+                    self.pc += 2;
                 }
                 Opcode::Output => {
                     self.output(self.get_value(&inst.operands[0]));
+                    self.pc += 2;
+                }
+                Opcode::JumpIfTrue => {
+                    if self.get_value(&inst.operands[0]) != 0 {
+                        self.pc = self.get_value(&inst.operands[1]) as usize;
+                    } else {
+                        self.pc += 3;
+                    }
+                }
+                Opcode::JumpIfFalse => {
+                    if self.get_value(&inst.operands[0]) == 0 {
+                        self.pc = self.get_value(&inst.operands[1]) as usize;
+                    } else {
+                        self.pc += 3;
+                    }
+                }
+                Opcode::LessThan => {
+                    let v1 = self.get_value(&inst.operands[0]);
+                    let v2 = self.get_value(&inst.operands[1]);
+
+                    let mut result = 0;
+                    if v1 < v2 {
+                        result = 1
+                    }
+                    // Parameters that an instruction writes to
+                    // are always positional.
+                    self.bytecode[inst.operands[2].value as usize] = result;
+                    self.pc += 4;
+                }
+                Opcode::Equals => {
+                    let v1 = self.get_value(&inst.operands[0]);
+                    let v2 = self.get_value(&inst.operands[1]);
+
+                    let mut result = 1;
+                    if v1 != v2 {
+                        result = 0;
+                    }
+                    // Parameters that an instruction writes to
+                    // are always positional.
+                    self.bytecode[inst.operands[2].value as usize] = result;
+                    self.pc += 4;
                 }
             }
             println!("Outputs: {:?}", self.outputs);
@@ -174,7 +235,6 @@ impl VM {
                     self.bytecode[self.pc + 3],
                     Mode::from(Mode::parse(mode, 2)),
                 ));
-                self.pc += 4;
             }
             Opcode::Multiply => {
                 operands.push(Operand::new(
@@ -189,25 +249,68 @@ impl VM {
                     self.bytecode[self.pc + 3],
                     Mode::from(Mode::parse(mode, 2)),
                 ));
-                self.pc += 4;
             }
             Opcode::Input => {
                 operands.push(Operand::new(
                     self.bytecode[self.pc + 1],
                     Mode::from(Mode::parse(mode, 0)),
                 ));
-                self.pc += 2;
             }
             Opcode::Output => {
                 operands.push(Operand::new(
                     self.bytecode[self.pc + 1],
                     Mode::from(Mode::parse(mode, 0)),
                 ));
-                self.pc += 2;
             }
-            Opcode::Halt => {
-                self.pc += 1;
+            Opcode::JumpIfTrue => {
+                operands.push(Operand::new(
+                    self.bytecode[self.pc + 1],
+                    Mode::from(Mode::parse(mode, 0)),
+                ));
+                operands.push(Operand::new(
+                    self.bytecode[self.pc + 2],
+                    Mode::from(Mode::parse(mode, 1)),
+                ));
             }
+            Opcode::JumpIfFalse => {
+                operands.push(Operand::new(
+                    self.bytecode[self.pc + 1],
+                    Mode::from(Mode::parse(mode, 0)),
+                ));
+                operands.push(Operand::new(
+                    self.bytecode[self.pc + 2],
+                    Mode::from(Mode::parse(mode, 1)),
+                ));
+            }
+            Opcode::LessThan => {
+                operands.push(Operand::new(
+                    self.bytecode[self.pc + 1],
+                    Mode::from(Mode::parse(mode, 0)),
+                ));
+                operands.push(Operand::new(
+                    self.bytecode[self.pc + 2],
+                    Mode::from(Mode::parse(mode, 1)),
+                ));
+                operands.push(Operand::new(
+                    self.bytecode[self.pc + 3],
+                    Mode::from(Mode::parse(mode, 2)),
+                ));
+            }
+            Opcode::Equals => {
+                operands.push(Operand::new(
+                    self.bytecode[self.pc + 1],
+                    Mode::from(Mode::parse(mode, 0)),
+                ));
+                operands.push(Operand::new(
+                    self.bytecode[self.pc + 2],
+                    Mode::from(Mode::parse(mode, 1)),
+                ));
+                operands.push(Operand::new(
+                    self.bytecode[self.pc + 3],
+                    Mode::from(Mode::parse(mode, 2)),
+                ));
+            }
+            Opcode::Halt => (),
         }
 
         Instruction { opcode, operands }
@@ -292,12 +395,41 @@ mod tests {
         assert_eq!(vm.bytecode, expected);
         assert_eq!(vm.outputs, vec![99]);
     }
+
+    #[test]
+    fn test_jump_instructions() {
+        // program that outputs 0 if the input was 0 otherwise 1.
+        // It uses position mode for all arguments.
+        let program = vec![3, 12, 6, 12, 15, 1, 13, 14, 13, 4, 13, 99, -1, 0, 1, 9];
+        let mut vm = VM::new(program.clone());
+        vm.set_input(0);
+        vm.run();
+        assert_eq!(vm.outputs(), vec![0]);
+
+        let mut vm = VM::new(program.clone());
+        vm.set_input(9);
+        vm.run();
+        assert_eq!(vm.outputs(), vec![1]);
+
+        // Same program but uses immediate mode.
+        let program = vec![3, 3, 1105, -1, 9, 1101, 0, 0, 12, 4, 12, 99, 1];
+        let mut vm = VM::new(program.clone());
+        vm.set_input(0);
+        vm.run();
+        assert_eq!(vm.outputs(), vec![0]);
+
+        let mut vm = VM::new(program.clone());
+        vm.set_input(9);
+        vm.run();
+        assert_eq!(vm.outputs(), vec![1]);
+    }
 }
 
 fn main() {
     let program = read_csv_ints("assets/day5_input");
     println!("{:?}", program);
     let mut vm = VM::new(program);
+    vm.set_input(5);
     vm.run();
     println!("{:?}", vm.outputs);
 }
