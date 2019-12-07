@@ -1,4 +1,5 @@
 use std::fs;
+pub mod vm;
 
 pub fn read_input(path: &str) -> Vec<i64> {
     let contents = fs::read_to_string(path).unwrap();
