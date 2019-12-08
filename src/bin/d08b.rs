@@ -25,7 +25,7 @@ fn print_image(layers: Vec<&[u32]>) {
   for i in 0..6 {
     for j in 0..25 {
       let c = image[i * 25 + j];
-      if c == 2 {
+      if c == 2 || c == 0 {
         print!("  ");
       } else {
         print!("{} ", c);
