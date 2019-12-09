@@ -173,7 +173,8 @@ impl VM {
                     self.pc += 2;
                 }
                 Opcode::Output => {
-                    self.output(self.get_value(&inst.operands[0]));
+                    let value = self.get_value(&inst.operands[0]);
+                    self.output(value);
                     self.pc += 2;
                     // We break out to let the caller consume output for
                     // the feedback loop.
@@ -223,11 +224,20 @@ impl VM {
         }
     }
 
-    fn get_value(&self, op: &Operand) -> i64 {
+    fn get_value(&mut self, op: &Operand) -> i64 {
         if op.mode == Mode::Immediate {
             op.value
         } else {
-            self.bytecode[op.value as usize]
+            let address = op.value as usize;
+            self.ensure_mem_availability(address);
+            self.bytecode[address]
+        }
+    }
+
+    fn ensure_mem_availability(&mut self, mem_size: usize) {
+        if mem_size > self.bytecode.len() {
+            // double the memory
+            self.bytecode.resize(mem_size * 2, 0);
         }
     }
 
