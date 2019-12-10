@@ -10,6 +10,7 @@ enum Opcode {
     JumpIfFalse,
     LessThan,
     Equals,
+    AdjustRelativeBase,
     Halt,
 }
 
@@ -17,6 +18,7 @@ enum Opcode {
 pub enum Mode {
     Position,
     Immediate,
+    Relative,
 }
 
 impl Mode {
@@ -35,6 +37,7 @@ impl From<i64> for Mode {
         match v {
             0 => Mode::Position,
             1 => Mode::Immediate,
+            2 => Mode::Relative,
             x => panic!("Unexpected mode: {}", x),
         }
     }
@@ -63,6 +66,7 @@ impl From<i64> for Opcode {
             6 => Opcode::JumpIfFalse,
             7 => Opcode::LessThan,
             8 => Opcode::Equals,
+            9 => Opcode::AdjustRelativeBase,
             99 => Opcode::Halt,
             x => panic!("Unexpected opcode: {}", x),
         }
@@ -80,6 +84,7 @@ impl From<Opcode> for i64 {
             Opcode::JumpIfFalse => 6,
             Opcode::LessThan => 7,
             Opcode::Equals => 8,
+            Opcode::AdjustRelativeBase => 9,
             Opcode::Halt => 99,
         }
     }
@@ -98,6 +103,7 @@ pub struct VM {
     inputs: LinkedList<i64>,
     outputs: Vec<i64>,
     done: bool,
+    relative_base: i64,
 }
 
 impl VM {
@@ -108,6 +114,7 @@ impl VM {
             inputs: LinkedList::new(),
             outputs: vec![],
             done: false,
+            relative_base: 0,
         }
     }
 
@@ -149,13 +156,19 @@ impl VM {
                     self.done = true;
                     break;
                 }
+                Opcode::AdjustRelativeBase => {
+                    let value = self.get_value(&inst.operands[0]);
+                    self.relative_base += value;
+                    self.pc += 2;
+                }
                 Opcode::Add => {
                     let v1 = self.get_value(&inst.operands[0]);
                     let v2 = self.get_value(&inst.operands[1]);
 
                     // Parameters that an instruction writes to
                     // are always positional.
-                    self.bytecode[inst.operands[2].value as usize] = v1 + v2;
+                    let dest = self.get_absolute_address(&inst.operands[2]);
+                    self.set_mem(dest, v1 + v2);
                     self.pc += 4;
                 }
                 Opcode::Multiply => {
@@ -164,12 +177,19 @@ impl VM {
 
                     // Parameters that an instruction writes to
                     // are always positional.
-                    self.bytecode[inst.operands[2].value as usize] = v1 * v2;
+                    let dest = self.get_absolute_address(&inst.operands[2]);
+                    self.set_mem(dest, v1 * v2);
                     self.pc += 4;
                 }
                 Opcode::Input => {
                     let inp = self.inputs.pop_front().unwrap();
-                    self.bytecode[inst.operands[0].value as usize] = inp;
+                    // In case of input, we only care about the address where to
+                    // store the value.
+                    let mut address = inst.operands[0].value;
+                    if inst.operands[0].mode == Mode::Relative {
+                        address += self.relative_base;
+                    }
+                    self.set_mem(address as usize, inp);
                     self.pc += 2;
                 }
                 Opcode::Output => {
@@ -204,7 +224,8 @@ impl VM {
                     }
                     // Parameters that an instruction writes to
                     // are always positional.
-                    self.bytecode[inst.operands[2].value as usize] = result;
+                    let address = self.get_absolute_address(&inst.operands[2]);
+                    self.set_mem(address, result);
                     self.pc += 4;
                 }
                 Opcode::Equals => {
@@ -217,20 +238,40 @@ impl VM {
                     }
                     // Parameters that an instruction writes to
                     // are always positional.
-                    self.bytecode[inst.operands[2].value as usize] = result;
+                    let address = self.get_absolute_address(&inst.operands[2]);
+                    self.set_mem(address, result);
                     self.pc += 4;
                 }
             }
         }
     }
 
+    fn get_absolute_address(&self, op: &Operand) -> usize {
+        match op.mode {
+            Mode::Position => op.value as usize,
+            Mode::Relative => (op.value + self.relative_base) as usize,
+            Mode::Immediate => panic!("Invalid mode for operand: {:?}", op),
+        }
+    }
+
+    fn set_mem(&mut self, address: usize, v: i64) {
+        self.ensure_mem_availability(address);
+        self.bytecode[address] = v;
+    }
+
     fn get_value(&mut self, op: &Operand) -> i64 {
-        if op.mode == Mode::Immediate {
-            op.value
-        } else {
-            let address = op.value as usize;
-            self.ensure_mem_availability(address);
-            self.bytecode[address]
+        match op.mode {
+            Mode::Immediate => op.value,
+            Mode::Position => {
+                let address = op.value as usize;
+                self.ensure_mem_availability(address);
+                self.bytecode[address]
+            }
+            Mode::Relative => {
+                let address = op.value + self.relative_base;
+                self.ensure_mem_availability(address as usize);
+                self.bytecode[address as usize]
+            }
         }
     }
 
@@ -337,6 +378,12 @@ impl VM {
                     Mode::from(Mode::parse(mode, 2)),
                 ));
             }
+            Opcode::AdjustRelativeBase => {
+                operands.push(Operand::new(
+                    self.bytecode[self.pc + 1],
+                    Mode::from(Mode::parse(mode, 0)),
+                ));
+            }
             Opcode::Halt => (),
         }
 
@@ -372,7 +419,6 @@ mod tests {
 
         let mut vm = VM::new(program);
         vm.run();
-        println!("{:?}", vm);
         assert_eq!(vm.bytecode, expected);
         assert_eq!(5, vm.pc);
     }
@@ -444,5 +490,51 @@ mod tests {
         vm.set_inputs(&[9]);
         vm.run();
         assert_eq!(vm.outputs(), vec![1]);
+    }
+
+    #[test]
+    fn test_large_numbers() {
+        let large_number = 1125899906842624i64;
+        let program = vec![104, large_number, 99];
+        let mut vm = VM::new(program);
+        vm.run();
+        assert_eq!(vm.get_last_output(), large_number);
+
+        // This program should output a 16 digit number.
+        let program = vec![1102, 34915192, 34915192, 7, 4, 7, 99, 0];
+        let mut vm = VM::new(program);
+        vm.run();
+        assert_eq!(vm.get_last_output().to_string().len(), 16);
+    }
+
+    #[test]
+    fn test_quine() {
+        let program = vec![
+            109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99,
+        ];
+        let expected_outputs = vec![
+            109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99,
+        ];
+
+        let mut vm = VM::new(program);
+        vm.run();
+        assert_eq!(vm.outputs(), expected_outputs);
+    }
+
+    #[test]
+    fn test_relative_mode_input() {
+        let program = vec![
+            109, 100, // set relative base to 100
+            109, 25, // Increment relative base by 25
+            109, -20, // Decrement relative base by 20
+            203, 50, // store first input at relative_base + 50 i.e. 105 + 50
+            103, 50, // store second input at 50
+            99,
+        ]; // halt
+        let mut vm = VM::new(program);
+        vm.set_inputs(&[111, 55]);
+        vm.run();
+        assert_eq!(vm.bytecode()[155], 111);
+        assert_eq!(vm.bytecode()[50], 55);
     }
 }
